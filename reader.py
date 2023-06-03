@@ -38,35 +38,56 @@ def gel_crop(img:np.ndarray) ->list:
     img: 图片像素矩阵
     return: 返回切片列表
     '''
-    # 二值化
-    _, img = cv2.threshold(img, 200, 255, cv2.THRESH_BINARY_INV)
-    # 统计列平均灰度曲线
-    col = np.array(img)
-    col_mean = col.mean(axis=0)
+    # 迭代合适的阈值，合理分割泳道
+    thresh = 255
+    while True:
+        # 二值化
+        _, img_b = cv2.threshold(img, thresh, 255, cv2.THRESH_BINARY_INV)
 
-    # 识别极小值点作为分割边界
-    edge = []
-    left = 0
-    right = 0
-    for i in range(len(col_mean)-1):
-        if col_mean[i]>0.1 and col_mean[i+1]<=0.1:
-            left = i
-        elif col_mean[i]<=0.1 and col_mean[i+1]>0.1:
-            right = i
-            if left and right:
-                edge.append((left,right))
-                left = 0
-                right = 0
-    lines = [0]
-    lines += [int((i+j)/2) for (i,j) in edge]
-    lines.append(len(img[0]))
-    crops = [img[:,lines[i]:lines[i+1]] for i in range(len(lines)-1)]
+        # 统计列平均灰度曲线
+        col = np.array(img_b)
+        col_mean = col.mean(axis=0)
+
+        # 识别极小值点作为分割边界
+        edge = []
+        left = 0
+        right = 0
+        for i in range(len(col_mean)-1):
+            if col_mean[i]>0.1 and col_mean[i+1]<=0.1:
+                left = i
+            elif col_mean[i]<=0.1 and col_mean[i+1]>0.1:
+                right = i
+                if left and right:
+                    edge.append((left,right))
+                    left = 0
+                    right = 0
+
+        # 边界列表
+        lines = [0] + [int((i+j)/2) for (i,j) in edge] + [len(img[0])]
+        crops = []
+        for i in range(len(lines)-1):
+            if lines[i+1]-lines[i]>20:
+                crops.append(img[:,lines[i]:lines[i+1]])
+
+        # 分割15泳道即循环结束
+        if len(crops) >= 15 or thresh <= 10:
+            break
+        else:
+            thresh -= 1
     return crops
 
+
+def normalize(marker):
+    '''根据标准Marker归一化条带大小'''
+    pass
 
 def show(img):
     cv2.imshow("", img)
     cv2.waitKey(0)
 
 img = pre_cut("1.png", cut_bg=False)
-show(img)
+lanes = gel_crop(img)
+for i in range(len(lanes)):
+    plt.subplot(1,len(lanes),i+1)
+    plt.imshow(lanes[i])
+plt.show()

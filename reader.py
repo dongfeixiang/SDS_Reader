@@ -38,10 +38,13 @@ def gel_crop(img:np.ndarray) ->list:
     img: 图片像素矩阵
     return: 返回切片列表
     '''
+    # 二值化
     _, img = cv2.threshold(img, 200, 255, cv2.THRESH_BINARY_INV)
+    # 统计列平均灰度曲线
     col = np.array(img)
     col_mean = col.mean(axis=0)
 
+    # 识别极小值点作为分割边界
     edge = []
     left = 0
     right = 0
@@ -57,7 +60,6 @@ def gel_crop(img:np.ndarray) ->list:
     lines = [0]
     lines += [int((i+j)/2) for (i,j) in edge]
     lines.append(len(img[0]))
-    print(lines)
     crops = [img[:,lines[i]:lines[i+1]] for i in range(len(lines)-1)]
     return crops
 

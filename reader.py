@@ -18,7 +18,7 @@ def pre_cut(img:str, cut_bg:bool=True) -> np.ndarray:
     _, img_b = cv2.threshold(img, 250, 255, cv2.THRESH_BINARY)
     row = np.array(img_b)
 
-    # 统计横向平均灰度值，确定胶孔边界
+    # 统计纵向平均灰度值，确定胶孔边界
     row_mean = row.mean(axis=1)
     top = 0
     for i in range(len(row_mean)):
@@ -28,8 +28,10 @@ def pre_cut(img:str, cut_bg:bool=True) -> np.ndarray:
 
     # 裁剪胶孔
     img = img[top+5:,:]
+    # 灰度反转
+    img = np.ones(img.shape, dtype=np.uint8)*255-np.array(img)
 
-    return np.array(img)
+    return img
 
 
 def gel_crop(img:np.ndarray) ->list:
@@ -42,7 +44,7 @@ def gel_crop(img:np.ndarray) ->list:
     thresh = 255
     while True:
         # 二值化
-        _, img_b = cv2.threshold(img, thresh, 255, cv2.THRESH_BINARY_INV)
+        _, img_b = cv2.threshold(img, thresh, 255, cv2.THRESH_BINARY)
 
         # 统计列平均灰度曲线
         col = np.array(img_b)
@@ -66,20 +68,27 @@ def gel_crop(img:np.ndarray) ->list:
         lines = [0] + [int((i+j)/2) for (i,j) in edge] + [len(img[0])]
         crops = []
         for i in range(len(lines)-1):
-            if lines[i+1]-lines[i]>20:
+            if lines[i+1]-lines[i]>50:
                 crops.append(img[:,lines[i]:lines[i+1]])
 
         # 分割15泳道即循环结束
-        if len(crops) >= 15 or thresh <= 10:
+        if len(crops) >= 15 or thresh <= 50:
             break
         else:
             thresh -= 1
     return crops
 
 
-def normalize(marker):
+def normalize(marker:np.ndarray):
     '''根据标准Marker归一化条带大小'''
-    pass
+    intensity_profile = np.mean(marker, axis=1)
+
+    for i in range(len(intensity_profile)):
+        if intensity_profile[i]>50:
+            if intensity_profile[i]>intensity_profile[i-1] and intensity_profile[i]>intensity_profile[i+1]:
+                print(i)
+    plt.plot(np.arange(len(marker)),intensity_profile)
+    plt.show()
 
 def show(img):
     cv2.imshow("", img)
@@ -87,7 +96,8 @@ def show(img):
 
 img = pre_cut("1.png", cut_bg=False)
 lanes = gel_crop(img)
-for i in range(len(lanes)):
-    plt.subplot(1,len(lanes),i+1)
-    plt.imshow(lanes[i])
-plt.show()
+# for i in range(len(lanes)):
+#     plt.subplot(1,len(lanes),i+1)
+#     plt.imshow(lanes[i])
+# plt.show()
+normalize(lanes[7])

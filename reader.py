@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 from cv2_rolling_ball import subtract_background_rolling_ball
 import matplotlib.pyplot as plt
-from scipy.signal import savgol_filter, argrelextrema
+from scipy.signal import find_peaks, peak_prominences,peak_widths
 
 
 def pre_cut(img:str, cut_bg:bool=True) -> np.ndarray:
@@ -87,20 +87,14 @@ def normalize(marker_img:np.ndarray, std:list):
     std: 标准Marker参考列表
     return: 
     '''
+    # 平均灰度曲线
     intensity_profile = np.mean(marker_img, axis=1)
 
-    # 1.数值平滑滤波
-    # 2.求解曲线极大值点，即Marker对应坐标
-    # 3.去除低值点
-    smooth  = savgol_filter(intensity_profile, 51, 3)
-    ex= argrelextrema(smooth, np.greater)[0]
-    ex_index = []
-    for i in range(len(ex)):
-        if intensity_profile[ex[i]] >= 40:
-            ex_index.append(ex[i])
+    # 查找峰顶坐标，即Marker对应坐标
+    peaks,_ = find_peaks(intensity_profile, height=40, distance=20)
 
     # 线性回归：ln(Mr) = a*X + b, Mr分子量, X坐标
-    p = np.poly1d(np.polyfit(ex_index, np.log(std[:len(ex_index)]), 1))
+    p = np.poly1d(np.polyfit(peaks, np.log(std[:len(peaks)]), 1))
 
     # 返回可调用函数
     def func(x):
@@ -108,13 +102,35 @@ def normalize(marker_img:np.ndarray, std:list):
     return func
 
 
-def intensiy_integrate(img:np.ndarray):
+def intensiy_integrate(lane:np.ndarray):
     '''
     条带灰度积分
-    img: 泳道灰度图
+    lane: 泳道灰度图
     return: 返回[(MW,Area)]
     '''
-    pass
+    # 累积灰度曲线
+    intensity_profile = np.sum(lane, axis=1)
+
+    # 查找峰值，计算峰高，峰宽，左右边界
+    peaks,_ = find_peaks(intensity_profile, height=2000)
+    h = peak_prominences(intensity_profile, peaks, wlen=100)[0]
+    w,_, left, right = peak_widths(intensity_profile, peaks, rel_height=1, wlen=100)
+
+    # 峰面积积分
+    area = []
+    for i in range(len(peaks)):
+        pi = intensity_profile[peaks[i]]-h[i]
+        peak_int = intensity_profile[int(left[i]):int(right[i])] - pi
+        area.append(np.sum(peak_int))
+    
+    plt.plot(np.arange(len(intensity_profile)), intensity_profile)
+    plt.plot(peaks, intensity_profile[peaks], "x")
+    plt.hlines(intensity_profile[peaks]-h, left, right)
+    plt.show()
+
+    # 返回峰值，面积
+    return (peaks, area)
+
 
 def show(img):
     cv2.imshow("", img)
@@ -127,4 +143,5 @@ lanes = gel_crop(img)
 #     plt.imshow(lanes[i])
 # plt.show()
 mw = normalize(lanes[7], [185,115,80,65,50,30,25,15,10])
-show(lanes[8])
+p,a = intensiy_integrate(lanes[8])
+print(mw(p),a)

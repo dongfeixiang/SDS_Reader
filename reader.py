@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 from cv2_rolling_ball import subtract_background_rolling_ball
 import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter, argrelextrema
 
 
 def pre_cut(img:str, cut_bg:bool=True) -> np.ndarray:
@@ -79,16 +80,41 @@ def gel_crop(img:np.ndarray) ->list:
     return crops
 
 
-def normalize(marker:np.ndarray):
-    '''根据标准Marker归一化条带大小'''
-    intensity_profile = np.mean(marker, axis=1)
+def normalize(marker_img:np.ndarray, std:list):
+    '''
+    根据标准Marker归一化条带大小
+    marker_img: Marker胶图
+    std: 标准Marker参考列表
+    return: 
+    '''
+    intensity_profile = np.mean(marker_img, axis=1)
 
-    for i in range(len(intensity_profile)):
-        if intensity_profile[i]>50:
-            if intensity_profile[i]>intensity_profile[i-1] and intensity_profile[i]>intensity_profile[i+1]:
-                print(i)
-    plt.plot(np.arange(len(marker)),intensity_profile)
-    plt.show()
+    # 1.数值平滑滤波
+    # 2.求解曲线极大值点，即Marker对应坐标
+    # 3.去除低值点
+    smooth  = savgol_filter(intensity_profile, 51, 3)
+    ex= argrelextrema(smooth, np.greater)[0]
+    ex_index = []
+    for i in range(len(ex)):
+        if intensity_profile[ex[i]] >= 40:
+            ex_index.append(ex[i])
+
+    # 线性回归：ln(Mr) = a*X + b, Mr分子量, X坐标
+    p = np.poly1d(np.polyfit(ex_index, np.log(std[:len(ex_index)]), 1))
+
+    # 返回可调用函数
+    def func(x):
+        return np.exp(p(x))
+    return func
+
+
+def intensiy_integrate(img:np.ndarray):
+    '''
+    条带灰度积分
+    img: 泳道灰度图
+    return: 返回[(MW,Area)]
+    '''
+    pass
 
 def show(img):
     cv2.imshow("", img)
@@ -100,4 +126,5 @@ lanes = gel_crop(img)
 #     plt.subplot(1,len(lanes),i+1)
 #     plt.imshow(lanes[i])
 # plt.show()
-normalize(lanes[7])
+mw = normalize(lanes[7], [185,115,80,65,50,30,25,15,10])
+show(lanes[8])

@@ -6,14 +6,18 @@ import cv2
 from cv2_rolling_ball import subtract_background_rolling_ball
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, peak_prominences,peak_widths
+import time
 
 
-def pre_cut(img:str, cut_bg:bool=True) -> np.ndarray:
+def pre_cut(img:str, cut_bg:bool=False) -> np.ndarray:
     '''图片预处理，裁剪，灰度化，背景减除'''
     img = cv2.imread(img, cv2.IMREAD_GRAYSCALE)
-    # 滚球法减除背景
+
+    # 滑动抛物面算法减除背景
     if cut_bg:
-        img, _ = subtract_background_rolling_ball(img, 30)
+        t1 = time.time()
+        img, _ = subtract_background_rolling_ball(img, 30, use_paraboloid=True)
+        print(time.time()-t1)
 
     # 根据阈值二值化
     _, img_b = cv2.threshold(img, 250, 255, cv2.THRESH_BINARY)
@@ -28,7 +32,7 @@ def pre_cut(img:str, cut_bg:bool=True) -> np.ndarray:
             break
 
     # 裁剪胶孔
-    img = img[top+5:,:]
+    img = img[top+10:,:]
     # 灰度反转
     img = np.ones(img.shape, dtype=np.uint8)*255-np.array(img)
 
@@ -112,7 +116,7 @@ def intensiy_integrate(lane:np.ndarray):
     intensity_profile = np.sum(lane, axis=1)
 
     # 查找峰值，计算峰高，峰宽，左右边界
-    peaks,_ = find_peaks(intensity_profile, height=2000)
+    peaks,_ = find_peaks(intensity_profile, height=1000, distance=20, prominence=100)
     h = peak_prominences(intensity_profile, peaks, wlen=100)[0]
     w,_, left, right = peak_widths(intensity_profile, peaks, rel_height=1, wlen=100)
 
@@ -131,17 +135,12 @@ def intensiy_integrate(lane:np.ndarray):
     # 返回峰值，面积
     return (peaks, area)
 
+def band_purity(area, band_num:int):
+    '''估计条带纯度，根据主条带数'''
+    sorted_area = sorted(area, reverse=True)
+    return sum(sorted_area[:band_num])/sum(area)
+
 
 def show(img):
     cv2.imshow("", img)
     cv2.waitKey(0)
-
-img = pre_cut("1.png", cut_bg=False)
-lanes = gel_crop(img)
-# for i in range(len(lanes)):
-#     plt.subplot(1,len(lanes),i+1)
-#     plt.imshow(lanes[i])
-# plt.show()
-mw = normalize(lanes[7], [185,115,80,65,50,30,25,15,10])
-p,a = intensiy_integrate(lanes[8])
-print(mw(p),a)

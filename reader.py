@@ -12,13 +12,7 @@ import time
 def pre_cut(img:str, cut_bg:bool=False) -> np.ndarray:
     '''图片预处理，裁剪，灰度化，背景减除'''
     img = cv2.imread(img, cv2.IMREAD_GRAYSCALE)
-
-    # 滑动抛物面算法减除背景
-    if cut_bg:
-        t1 = time.time()
-        img, _ = subtract_background_rolling_ball(img, 30, use_paraboloid=True)
-        print(time.time()-t1)
-
+    
     # 根据阈值二值化
     _, img_b = cv2.threshold(img, 250, 255, cv2.THRESH_BINARY)
     row = np.array(img_b)
@@ -33,6 +27,13 @@ def pre_cut(img:str, cut_bg:bool=False) -> np.ndarray:
 
     # 裁剪胶孔
     img = img[top+10:,:]
+
+    # 滑动抛物面算法减除背景
+    if cut_bg:
+        t1 = time.time()
+        img, _ = subtract_background_rolling_ball(img, 30, use_paraboloid=True)
+        print(time.time()-t1)
+    
     # 灰度反转
     img = np.ones(img.shape, dtype=np.uint8)*255-np.array(img)
 
@@ -45,42 +46,33 @@ def gel_crop(img:np.ndarray) ->list:
     img: 图片像素矩阵
     return: 返回切片列表
     '''
-    # 迭代合适的阈值，合理分割泳道
-    thresh = 255
-    while True:
-        # 二值化
-        _, img_b = cv2.threshold(img, thresh, 255, cv2.THRESH_BINARY)
+    # 统计列平均灰度曲线
+    # img = cv2.erode(img, np.ones((3,3)))
+    img_inv = np.ones(img.shape, dtype=np.uint8)*255-np.array(img)
+    col = np.array(img_inv)
+    col_mean = col.mean(axis=0)
 
-        # 统计列平均灰度曲线
-        col = np.array(img_b)
-        col_mean = col.mean(axis=0)
+    # 查找峰顶，即分割界限
+    peaks,_ = find_peaks(col_mean, height=250, distance=10, prominence=2)
 
-        # 识别极小值点作为分割边界
-        edge = []
-        left = 0
-        right = 0
-        for i in range(len(col_mean)-1):
-            if col_mean[i]>0.1 and col_mean[i+1]<=0.1:
-                left = i
-            elif col_mean[i]<=0.1 and col_mean[i+1]>0.1:
-                right = i
-                if left and right:
-                    edge.append((left,right))
-                    left = 0
-                    right = 0
+    # plt.plot(np.arange(len(col_mean)), col_mean)
+    # plt.plot(peaks, col_mean[peaks], "x")
+    # plt.show()
 
-        # 边界列表
-        lines = [0] + [int((i+j)/2) for (i,j) in edge] + [len(img[0])]
-        crops = []
-        for i in range(len(lines)-1):
-            if lines[i+1]-lines[i]>50:
-                crops.append(img[:,lines[i]:lines[i+1]])
+    # 边界列表
+    lines = [0] + list(peaks) + [len(img[0])]
+    crops = []
+    for i in range(len(lines)-1):
+        crops.append(img[:,lines[i]:lines[i+1]])
 
-        # 分割15泳道即循环结束
-        if len(crops) >= 15 or thresh <= 50:
-            break
-        else:
-            thresh -= 1
+    # 分割失败异常
+    if len(crops) != 15:
+        raise Exception("crop failed")
+
+    # for i in range(len(crops)):
+    #     plt.subplot(1,len(crops),i+1)
+    #     plt.imshow(crops[i])
+    # plt.show()
     return crops
 
 
@@ -116,7 +108,7 @@ def intensiy_integrate(lane:np.ndarray):
     intensity_profile = np.sum(lane, axis=1)
 
     # 查找峰值，计算峰高，峰宽，左右边界
-    peaks,_ = find_peaks(intensity_profile, height=1000, distance=20, prominence=100)
+    peaks,_ = find_peaks(intensity_profile, distance=20, prominence=200)
     h = peak_prominences(intensity_profile, peaks, wlen=100)[0]
     w,_, left, right = peak_widths(intensity_profile, peaks, rel_height=1, wlen=100)
 

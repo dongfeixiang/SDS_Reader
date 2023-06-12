@@ -119,10 +119,10 @@ def intensiy_integrate(lane:np.ndarray):
         peak_int = intensity_profile[int(left[i]):int(right[i])] - pi
         area.append(np.sum(peak_int))
     
-    plt.plot(np.arange(len(intensity_profile)), intensity_profile)
-    plt.plot(peaks, intensity_profile[peaks], "x")
-    plt.hlines(intensity_profile[peaks]-h, left, right)
-    plt.show()
+    # plt.plot(np.arange(len(intensity_profile)), intensity_profile)
+    # plt.plot(peaks, intensity_profile[peaks], "x")
+    # plt.hlines(intensity_profile[peaks]-h, left, right)
+    # plt.show()
 
     # 返回峰值，面积
     return (peaks, area)

@@ -46,8 +46,26 @@ def gel_crop(img:np.ndarray) ->list:
     img: 图片像素矩阵
     return: 返回切片列表
     '''
+    # 平均校正算法
+    # 1.均分，根据宽度15均分
+    width = len(img[0])
+    edges = [int((i+1)*width/15) for i in range(14)]
+    # 2.校正1：横向灰度校正
+    edges = gray_check(img, edges)
+
+    plt.imshow(img, cmap="gray")
+    plt.vlines(edges, 0, len(img), colors="red")
+    plt.show()
+
+    # 边界列表
+    lines = [0] + edges + [len(img[0])]
+
+    return [img[:,lines[i]:lines[i+1]] for i in range(len(lines)-1)]
+
+
+def gray_check(img:np.ndarray, edges:list):
+    '''横向灰度极值校正'''
     # 统计列平均灰度曲线
-    # img = cv2.erode(img, np.ones((3,3)))
     img_inv = np.ones(img.shape, dtype=np.uint8)*255-np.array(img)
     col = np.array(img_inv)
     col_mean = col.mean(axis=0)
@@ -55,25 +73,17 @@ def gel_crop(img:np.ndarray) ->list:
     # 查找峰顶，即分割界限
     peaks,_ = find_peaks(col_mean, height=250, distance=10, prominence=2)
 
-    # plt.plot(np.arange(len(col_mean)), col_mean)
+    for c in col:
+        plt.plot(np.arange(len(col_mean)), c)
     # plt.plot(peaks, col_mean[peaks], "x")
-    # plt.show()
+    plt.show()
 
-    # 边界列表
-    lines = [0] + list(peaks) + [len(img[0])]
-    crops = []
-    for i in range(len(lines)-1):
-        crops.append(img[:,lines[i]:lines[i+1]])
-
-    # 分割失败异常
-    if len(crops) != 15:
-        raise Exception("crop failed")
-
-    # for i in range(len(crops)):
-    #     plt.subplot(1,len(crops),i+1)
-    #     plt.imshow(crops[i])
-    # plt.show()
-    return crops
+    # 查找最近边界并校正
+    for i,e in enumerate(edges):
+        dis = [abs(e-p) for p in peaks]
+        if min(dis) < len(img[0])/15:
+            edges[i] = peaks[dis.index(min(dis))]
+    return edges
 
 
 def normalize(marker_img:np.ndarray, std:list):

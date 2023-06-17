@@ -1,15 +1,32 @@
 # encoding = utf-8
 import pandas as pd
 from reader import *
+import os
+from concurrent.futures import ProcessPoolExecutor
+import time
 
 
 MARKER1 = [185, 115, 80, 65, 50, 30, 25, 15, 10]    # 通用marker表
 
+def get_analysis(filename):
+    print(f"{filename} start")
+    gel = pre_cut(filename, True)
+    lanes = gel_crop(gel)
+    print(f"{filename} complete")
+
 
 if __name__ == "__main__":
-    pic = ["1.jpg", "2.jpg"]
-    gel = pre_cut(pic[0], True)
-    lanes = gel_crop(gel)
+    files = os.listdir(os.getcwd())
+    pics = []
+    for f in files:
+        if ".jpg" in f:
+            pics.append(f)
+    
+    t1 = time.time()
+    with ProcessPoolExecutor(10) as pool:
+        for p in pics:
+            pool.submit(get_analysis, p)
+    print(time.time()-t1)
     # out = pd.read_excel("output.xlsx")
     # row = 0
     # for p in pic:
